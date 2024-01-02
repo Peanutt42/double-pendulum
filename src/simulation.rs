@@ -1,11 +1,19 @@
-use std::time::Instant;
-
 use ggez::Context;
 use ggez::graphics::{ Canvas, Color, self };
 use ggez::glam::*;
 use ggez::mint::Point2;
 
 use glm::DVec2;
+#[inline(always)]
+fn dvec2_to_vec2(v: &DVec2) -> Vec2 {
+	Vec2 { x: v.x as f32, y: v.y as f32 }
+}
+
+#[inline(always)]
+fn vec2_to_point2(v: &Vec2) -> Point2<f32> {
+	Point2 { x: v.x, y: v.y }
+}
+
 struct Pendulum {
 	position: DVec2,
 	velocity: f64,
@@ -28,25 +36,21 @@ impl Pendulum {
 	}
 
 	fn get_debug_position(&self, center: &Vec2) -> Vec2 {
-		Vec2 {
-			x: self.position.x as f32 * 100.0 + center.x,
-			y: self.position.y as f32 * 100.0 + center.y
-		}
+		dvec2_to_vec2(&(self.position * 100.0)) + *center
 	}
 
-	fn draw_debug(&mut self, ctx: &mut Context, canvas: &mut Canvas, center: &Vec2) {
-		let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), self.mass as f32, 0.1, Color::WHITE);
-		canvas.draw(&circle.unwrap(), self.get_debug_position(center));
+	fn draw_debug(&self, ctx: &mut Context, canvas: &mut Canvas, color: Color, center: &Vec2) {
+		let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), self.mass as f32, 0.1, color).unwrap();
+		canvas.draw(&circle, self.get_debug_position(center));
 	}
 }
 
 pub struct Simulation {
 	top_pendulum: Pendulum,
 	bottom_pendulum: Pendulum,
-	last_update_time: Instant,
 	gravity: f64,
 	debug_color: Color,
-	debug_trail_points: Vec<Point2<f32>>,
+	debug_trail_points: Vec<Point2<f32>>
 }
 
 impl Simulation {
@@ -54,37 +58,38 @@ impl Simulation {
 		Self {
 			top_pendulum: Pendulum::new(angle, 10.0, 2.0),
 			bottom_pendulum: Pendulum::new(angle, 20.0, 1.0),
-			last_update_time: Instant::now(),
 			gravity: 9.81,
 			debug_color: color,
-			debug_trail_points: vec![],
+			debug_trail_points: vec![]
 		}
 	}
 
-	pub fn update(&mut self) {
-		let now = Instant::now();
-		let delta_time = (now - self.last_update_time).as_secs_f64();
-		self.last_update_time = now;
-
+	pub fn update(&mut self, time_step: f64) {
 		// See https://www.myphysicslab.com/pendulum/double-pendulum-en.html under 'Numerical Solution' at the bottom of the page
-		let n11 = -self.gravity*(2.0*self.top_pendulum.mass+self.bottom_pendulum.mass)*f64::sin(self.top_pendulum.angle);
-		let n12 = -self.bottom_pendulum.mass*self.gravity*f64::sin(self.top_pendulum.angle-2.0*self.bottom_pendulum.angle);
-		let n13 = -2.0*f64::sin(self.top_pendulum.angle-self.bottom_pendulum.angle) * self.bottom_pendulum.mass;
-		let n14 = (self.bottom_pendulum.velocity*self.bottom_pendulum.velocity*self.bottom_pendulum.length + self.top_pendulum.velocity*self.top_pendulum.velocity*self.top_pendulum.length*f64::cos(self.top_pendulum.angle-self.bottom_pendulum.angle));
-		let den = 2.0*self.top_pendulum.mass+self.bottom_pendulum.mass-self.bottom_pendulum.mass*f64::cos(2.0*self.top_pendulum.angle-2.0*self.bottom_pendulum.angle);
-		let n21 = 2.0*f64::sin(self.top_pendulum.angle-self.bottom_pendulum.angle);
-		let n22 = self.top_pendulum.velocity*self.top_pendulum.velocity*self.top_pendulum.length*(self.top_pendulum.mass+self.bottom_pendulum.mass);
-		let n23 = self.gravity*(self.top_pendulum.mass+self.bottom_pendulum.mass)*f64::cos(self.top_pendulum.angle);
-		let n24 = self.bottom_pendulum.velocity*self.bottom_pendulum.velocity*self.bottom_pendulum.length*self.bottom_pendulum.mass*f64::cos(self.top_pendulum.angle-self.bottom_pendulum.angle);
+		let g = self.gravity;
+		let l1 = self.top_pendulum.length;			let l2 = self.bottom_pendulum.length;
+		let m1 = self.top_pendulum.mass;			let m2 = self.bottom_pendulum.mass;
+		let angle1 = self.top_pendulum.angle;		let angle2 = self.bottom_pendulum.angle;
+		let velo1 = self.top_pendulum.velocity;	let velo2 = self.bottom_pendulum.velocity;
 
-		self.top_pendulum.acceleration = (n11+n12+n13*n14) /(self.top_pendulum.length*den);
-		self.bottom_pendulum.acceleration = (n21*(n22+n23+n24)) /(self.bottom_pendulum.length*den);
+		let n11 = -g * (2.0 * m1 + m2) * f64::sin(angle1);
+		let n12 = -m2 * g * f64::sin(angle1 - 2.0 * angle2);
+		let n13 = -2.0 * f64::sin(angle1 - angle2) * m2;
+		let n14 = velo2 * velo2 * l2 + velo1 * velo1 * l1 * f64::cos(angle1 - angle2);
+		let den = 2.0 * m1 + m2 - m2 * f64::cos(2.0 * angle1 - 2.0 * angle2);
+		let n21 = 2.0 * f64::sin(angle1 - angle2);
+		let n22 = velo1 * velo1 * l1 * (m1 + m2);
+		let n23 = g * (m1 + m2) * f64::cos(angle1);
+		let n24 = velo2 * velo2 * l2 * m2 * f64::cos(angle1 - angle2);
 
-		self.top_pendulum.velocity += self.top_pendulum.acceleration * delta_time;
-		self.bottom_pendulum.velocity += self.bottom_pendulum.acceleration * delta_time;
+		self.top_pendulum.acceleration = (n11 + n12 + n13 * n14) /(l1 * den);
+		self.bottom_pendulum.acceleration = (n21 * (n22 + n23 + n24)) / (l2 * den);
 
-		self.top_pendulum.angle += self.top_pendulum.velocity * delta_time;
-		self.bottom_pendulum.angle += self.bottom_pendulum.velocity * delta_time;
+		self.top_pendulum.velocity += self.top_pendulum.acceleration * time_step;
+		self.bottom_pendulum.velocity += self.bottom_pendulum.acceleration * time_step;
+
+		self.top_pendulum.angle += self.top_pendulum.velocity * time_step;
+		self.bottom_pendulum.angle += self.bottom_pendulum.velocity * time_step;
 		
 		self.top_pendulum.position.x = self.top_pendulum.length * f64::sin(self.top_pendulum.angle);
 		self.top_pendulum.position.y = self.top_pendulum.length * f64::cos(self.top_pendulum.angle);
@@ -100,25 +105,25 @@ impl Simulation {
 			let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), 10.0, 0.1, self.debug_color);
 			canvas.draw(&circle.unwrap(), center);
 		
-			self.top_pendulum.draw_debug(ctx, canvas, &center);
-			self.bottom_pendulum.draw_debug(ctx, canvas, &center);
+			self.top_pendulum.draw_debug(ctx, canvas, self.debug_color, &center);
+			self.bottom_pendulum.draw_debug(ctx, canvas, self.debug_color, &center);
 		}
 		
-		let top_debug_position = self.top_pendulum.get_debug_position(&center);
 		let bottom_debug_position = self.bottom_pendulum.get_debug_position(&center);
 
 		if trails {
-			self.debug_trail_points.push(Point2{ x: bottom_debug_position.x, y: bottom_debug_position.y });
+			self.debug_trail_points.push(vec2_to_point2(&bottom_debug_position));
 			let lines = graphics::Mesh::new_line(ctx, &self.debug_trail_points, 1.0, Color::GREEN);
 			if lines.is_ok() { canvas.draw(&lines.unwrap(), Vec2::new(0.0, 0.0)); }
 		}
 
 		let points: [Point2<f32>; 3] = [
-			Point2{ x: center.x, y: center.y },
-			Point2{ x: top_debug_position.x, y: top_debug_position.y },
-			Point2{ x: bottom_debug_position.x, y: bottom_debug_position.y }
+			vec2_to_point2(&center),
+			vec2_to_point2(&self.top_pendulum.get_debug_position(&center)),
+			vec2_to_point2(&bottom_debug_position)
 		];
 		let lines = graphics::Mesh::new_line(ctx, &points, 1.0, self.debug_color);
+		
 		canvas.draw(&lines.unwrap(), Vec2::new(0.0, 0.0));
 	}
 }
