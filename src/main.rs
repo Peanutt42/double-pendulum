@@ -9,7 +9,7 @@ pub mod simulation;
 use crate::simulation::Simulation;
 
 fn main() {
-    let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author")
+    let (mut ctx, event_loop) = ContextBuilder::new("Double Pendulum", "Peanutt42")
         .build()
         .expect("aieee, could not create ggez context!");
 
@@ -72,8 +72,8 @@ impl Visualization {
             let color = Self::rainbow_color(i as f32 / COUNT as f32);
             self.simulations.push(Simulation::new((120.0 + 0.0001 * i as f64) * consts::PI / 180.0, color));
         }
-        self.trails = true;
-        self.show_pendulum = true;
+        self.trails = false;
+        self.show_pendulum = false;
     }
 }
 

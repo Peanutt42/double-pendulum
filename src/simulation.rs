@@ -27,15 +27,16 @@ impl Pendulum {
 		}
 	}
 
-	fn draw_debug(&mut self, ctx: &mut Context, canvas: &mut Canvas, center: &Vec2, trails: bool, show_pendulum: bool) {
-		if show_pendulum {
-			let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), self.mass as f32, 2.0, Color::WHITE);
-			canvas.draw(&circle.unwrap(), Vec2::new((self.position.x * 100.0) as f32 + center.x, (self.position.y * 100.0) as f32 + center.y));
+	fn get_debug_position(&self, center: &Vec2) -> Vec2 {
+		Vec2 {
+			x: self.position.x as f32 * 100.0 + center.x,
+			y: self.position.y as f32 * 100.0 + center.y
 		}
+	}
 
-		if trails {
-			// todo
-		}
+	fn draw_debug(&mut self, ctx: &mut Context, canvas: &mut Canvas, center: &Vec2) {
+		let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), self.mass as f32, 0.1, Color::WHITE);
+		canvas.draw(&circle.unwrap(), self.get_debug_position(center));
 	}
 }
 
@@ -44,6 +45,8 @@ pub struct Simulation {
 	bottom_pendulum: Pendulum,
 	last_update_time: Instant,
 	gravity: f64,
+	debug_color: Color,
+	debug_trail_points: Vec<Point2<f32>>,
 }
 
 impl Simulation {
@@ -53,6 +56,8 @@ impl Simulation {
 			bottom_pendulum: Pendulum::new(angle, 20.0, 1.0),
 			last_update_time: Instant::now(),
 			gravity: 9.81,
+			debug_color: color,
+			debug_trail_points: vec![],
 		}
 	}
 
@@ -80,8 +85,7 @@ impl Simulation {
 
 		self.top_pendulum.angle += self.top_pendulum.velocity * delta_time;
 		self.bottom_pendulum.angle += self.bottom_pendulum.velocity * delta_time;
-		println!("delta: {},top: {}, bottom: {}", delta_time, self.top_pendulum.angle, self.bottom_pendulum.angle);
-
+		
 		self.top_pendulum.position.x = self.top_pendulum.length * f64::sin(self.top_pendulum.angle);
 		self.top_pendulum.position.y = self.top_pendulum.length * f64::cos(self.top_pendulum.angle);
 
@@ -93,18 +97,28 @@ impl Simulation {
 		let center: Vec2 = Vec2::new(400.0, 200.0);
 		
 		if show_pendulum {
-			let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), 10.0, 2.0, Color::WHITE);
+			let circle = graphics::Mesh::new_circle(ctx, graphics::DrawMode::fill(), Vec2::new(0.0, 0.0), 10.0, 0.1, self.debug_color);
 			canvas.draw(&circle.unwrap(), center);
+		
+			self.top_pendulum.draw_debug(ctx, canvas, &center);
+			self.bottom_pendulum.draw_debug(ctx, canvas, &center);
+		}
+		
+		let top_debug_position = self.top_pendulum.get_debug_position(&center);
+		let bottom_debug_position = self.bottom_pendulum.get_debug_position(&center);
+
+		if trails {
+			self.debug_trail_points.push(Point2{ x: bottom_debug_position.x, y: bottom_debug_position.y });
+			let lines = graphics::Mesh::new_line(ctx, &self.debug_trail_points, 1.0, Color::GREEN);
+			if lines.is_ok() { canvas.draw(&lines.unwrap(), Vec2::new(0.0, 0.0)); }
 		}
 
-		self.top_pendulum.draw_debug(ctx, canvas, &center, trails, show_pendulum);
-		self.bottom_pendulum.draw_debug(ctx, canvas, &center, trails, show_pendulum);
-		
 		let points: [Point2<f32>; 3] = [
 			Point2{ x: center.x, y: center.y },
-			Point2{ x: self.top_pendulum.position.x as f32 + center.x, y: self.top_pendulum.position.y as f32 + center.y },
-			Point2{ x: self.bottom_pendulum.position.x as f32 + center.x, y: self.bottom_pendulum.position.y as f32 + center.y }
+			Point2{ x: top_debug_position.x, y: top_debug_position.y },
+			Point2{ x: bottom_debug_position.x, y: bottom_debug_position.y }
 		];
-		graphics::Mesh::new_line(ctx, &points, 1.0, Color::WHITE);
+		let lines = graphics::Mesh::new_line(ctx, &points, 1.0, self.debug_color);
+		canvas.draw(&lines.unwrap(), Vec2::new(0.0, 0.0));
 	}
 }
