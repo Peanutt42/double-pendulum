@@ -1,4 +1,4 @@
-# double-pendulum-rs (rust rewrite from [DoublePendulum](https://github.com/Peanutt42/DoublePendulum))
+# double-pendulum
  
 ## Controls
 - Enabled/Disable precision (fixed time step = 5000 fps) mode: Press ```Space```
