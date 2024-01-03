@@ -11,6 +11,10 @@ pub mod simulation;
 use crate::simulation::Simulation;
 
 fn main() {
+    if cfg!(debug_assertions) {
+        println!("Running in debug build will be alot slower, especially in precision mode!");
+    }
+
     let (ctx, event_loop) = ContextBuilder::new("Double Pendulum", "Peanutt42")
         .build()
         .expect("aieee, could not create ggez context!");
@@ -45,14 +49,16 @@ impl Visualization {
     }
 
     pub fn set_default_sim(&mut self) {
+        println!("Default simulation");
         self.simulations.clear();
         self.simulations.push(Simulation::new(120.0 * consts::PI / 180.0, Color::WHITE));
         self.trails = true;
         self.show_pendulum = true;
     }
     pub fn set_chaos_sim(&mut self) {
-        self.simulations.clear();
         const COUNT: i32 = 1000;
+        println!("Chaos simulation with {COUNT} double-pendulums");
+        self.simulations.clear();
         for i in 0..COUNT {
             let color = rainbow_color(i as f32 / COUNT as f32);
             self.simulations.push(Simulation::new((120.0 + 0.0001 * i as f64) * consts::PI / 180.0, color));
@@ -72,6 +78,7 @@ impl EventHandler for Visualization {
         }
         else if ctx.keyboard.is_key_just_pressed(VirtualKeyCode::Space) {
             self.precision_mode_enabled = !self.precision_mode_enabled;
+            println!("Precision Mode: {}", if self.precision_mode_enabled { "Enabled" } else { "Disabled" });
         }
 
         let now = Instant::now();
