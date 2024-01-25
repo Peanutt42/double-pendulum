@@ -1,4 +1,4 @@
-# double-pendulum
+# Double Pendulum
  
 ## Controls
 - Enabled/Disable precision (fixed time step = 5000 fps) mode: Press ```Space```
