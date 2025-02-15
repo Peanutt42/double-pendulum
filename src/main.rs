@@ -1,9 +1,10 @@
 use std::f64::consts;
 
-use ggez::{Context, ContextBuilder, GameResult};
-use ggez::graphics::{self, Color};
+use ggez::conf::WindowMode;
 use ggez::event::{self, EventHandler};
+use ggez::graphics::{self, Color};
 use ggez::winit::event::VirtualKeyCode;
+use ggez::{Context, ContextBuilder, GameResult};
 
 use std::time::Instant;
 
@@ -16,6 +17,12 @@ fn main() {
     }
 
     let (ctx, event_loop) = ContextBuilder::new("Double Pendulum", "Peanutt42")
+        .window_mode(WindowMode {
+            width: 800.0,
+            height: 400.0,
+            resizable: true,
+            ..Default::default()
+        })
         .build()
         .expect("aieee, could not create ggez context!");
 
@@ -51,7 +58,8 @@ impl Visualization {
     pub fn set_default_sim(&mut self) {
         println!("Default simulation");
         self.simulations.clear();
-        self.simulations.push(Simulation::new(120.0 * consts::PI / 180.0, Color::WHITE));
+        self.simulations
+            .push(Simulation::new(120.0 * consts::PI / 180.0, Color::WHITE));
         self.trails = true;
         self.show_pendulum = true;
     }
@@ -61,7 +69,10 @@ impl Visualization {
         self.simulations.clear();
         for i in 0..COUNT {
             let color = rainbow_color(i as f32 / COUNT as f32);
-            self.simulations.push(Simulation::new((120.0 + 0.0001 * i as f64) * consts::PI / 180.0, color));
+            self.simulations.push(Simulation::new(
+                (120.0 + 0.0001 * i as f64) * consts::PI / 180.0,
+                color,
+            ));
         }
         self.trails = false;
         self.show_pendulum = false;
@@ -72,19 +83,24 @@ impl EventHandler for Visualization {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         if ctx.keyboard.is_key_just_pressed(VirtualKeyCode::Key1) {
             self.set_default_sim();
-        }
-        else if ctx.keyboard.is_key_just_pressed(VirtualKeyCode::Key2) {
+        } else if ctx.keyboard.is_key_just_pressed(VirtualKeyCode::Key2) {
             self.set_chaos_sim();
-        }
-        else if ctx.keyboard.is_key_just_pressed(VirtualKeyCode::Space) {
+        } else if ctx.keyboard.is_key_just_pressed(VirtualKeyCode::Space) {
             self.precision_mode_enabled = !self.precision_mode_enabled;
-            println!("Precision Mode: {}", if self.precision_mode_enabled { "Enabled" } else { "Disabled" });
+            println!(
+                "Precision Mode: {}",
+                if self.precision_mode_enabled {
+                    "Enabled"
+                } else {
+                    "Disabled"
+                }
+            );
         }
 
         let now = Instant::now();
         let delta_time = (now - self.last_update_time).as_secs_f64();
         self.last_update_time = Instant::now();
-        
+
         if self.precision_mode_enabled {
             self.accumulator += delta_time;
             while self.accumulator >= self.fixed_time_step {
@@ -93,29 +109,28 @@ impl EventHandler for Visualization {
                 }
                 self.accumulator -= self.fixed_time_step;
             }
-        }
-        else {
+        } else {
             for sim in self.simulations.iter_mut() {
                 sim.update(delta_time);
-            } 
+            }
         }
-        
+
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         let mut canvas = graphics::Canvas::from_frame(ctx, Color::BLACK);
-        
+
         for sim in self.simulations.iter_mut() {
             sim.draw(ctx, &mut canvas, self.trails, self.show_pendulum);
         }
-        
+
         canvas.finish(ctx)
     }
 }
 
 fn rainbow_color(mut scalar: f32) -> Color {
-    scalar = f32::min(1.0, f32::max(0.0, scalar));
+    scalar = scalar.clamp(0.0, 1.0);
 
     let hue = scalar * 360.0;
     let saturation = 1.0;
